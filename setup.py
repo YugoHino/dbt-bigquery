@@ -16,8 +16,8 @@ except ImportError:
     sys.exit(1)
 
 from pathlib import Path
-from setuptools import setup
 
+from setuptools import setup
 
 # pull the long description from the README
 README = Path(__file__).parent / "README.md"
@@ -58,7 +58,7 @@ def _dbt_core_version(plugin_version: str) -> str:
 
 
 package_name = "dbt-bigquery"
-package_version = "1.8.0a1"
+package_version = "1.7.2"
 dbt_core_version = _dbt_core_version(_dbt_bigquery_version())
 description = """The BigQuery adapter plugin for dbt"""
 

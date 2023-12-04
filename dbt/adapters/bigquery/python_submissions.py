@@ -1,23 +1,21 @@
 import uuid
 from typing import Dict, Union
 
-from dbt.events import AdapterLogger
-
-from dbt.adapters.base import PythonJobHelper
-from google.api_core.future.polling import POLLING_PREDICATE
-
-from dbt.adapters.bigquery import BigQueryConnectionManager, BigQueryCredentials
 from google.api_core import retry
 from google.api_core.client_options import ClientOptions
-from google.cloud import storage, dataproc_v1  # type: ignore
+from google.api_core.future.polling import POLLING_PREDICATE
+from google.cloud import dataproc_v1, storage  # type: ignore
 from google.cloud.dataproc_v1.types.batches import Batch
 
+from dbt.adapters.base import PythonJobHelper
+from dbt.adapters.bigquery import BigQueryConnectionManager, BigQueryCredentials
 from dbt.adapters.bigquery.dataproc.batch import (
+    DEFAULT_JAR_FILE_URI,
     create_batch_request,
     poll_batch_job,
-    DEFAULT_JAR_FILE_URI,
     update_batch_from_config,
 )
+from dbt.events import AdapterLogger
 
 OPERATION_RETRY_TIME = 10
 logger = AdapterLogger("BigQuery")
@@ -40,9 +38,7 @@ class BaseDataProcHelper(PythonJobHelper):
         ]
         for required_config in python_required_configs:
             if not getattr(credential, required_config):
-                raise ValueError(
-                    f"Need to supply {required_config} in profile to submit python job"
-                )
+                raise ValueError(f"Need to supply {required_config} in profile to submit python job")
         self.model_file_name = f"{schema}/{identifier}.py"
         self.credential = credential
         self.GoogleCredentials = BigQueryConnectionManager.get_credentials(credential)
@@ -55,9 +51,7 @@ class BaseDataProcHelper(PythonJobHelper):
         self.timeout = self.parsed_model["config"].get(
             "timeout", self.credential.job_execution_timeout_seconds or 60 * 60 * 24
         )
-        self.result_polling_policy = retry.Retry(
-            predicate=POLLING_PREDICATE, maximum=10.0, timeout=self.timeout
-        )
+        self.result_polling_policy = retry.Retry(predicate=POLLING_PREDICATE, maximum=10.0, timeout=self.timeout)
         self.client_options = ClientOptions(
             api_endpoint="{}-dataproc.googleapis.com:443".format(self.credential.dataproc_region)
         )
@@ -94,9 +88,7 @@ class ClusterDataprocHelper(BaseDataProcHelper):
         )
 
     def _get_cluster_name(self) -> str:
-        return self.parsed_model["config"].get(
-            "dataproc_cluster_name", self.credential.dataproc_cluster_name
-        )
+        return self.parsed_model["config"].get("dataproc_cluster_name", self.credential.dataproc_cluster_name)
 
     def _submit_dataproc_job(self) -> dataproc_v1.types.jobs.Job:
         job = {
@@ -127,7 +119,8 @@ class ServerlessDataProcHelper(BaseDataProcHelper):
 
     def _get_batch_id(self) -> str:
         model = self.parsed_model
-        default_batch_id = str(uuid.uuid4())
+        default_batch_id = model["unique_id"].replace(".", "-").replace("_", "-")
+        default_batch_id += str(int(model["created_at"]))
         return model["config"].get("batch_id", default_batch_id)
 
     def _submit_dataproc_job(self) -> Batch:
